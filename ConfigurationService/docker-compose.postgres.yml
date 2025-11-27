@@ -1,0 +1,26 @@
+version: '3.8'
+
+services:
+  postgres-config:
+    image: postgres:15-alpine
+    container_name: configservice-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_DB: config_service_db
+      POSTGRES_USER: config_admin
+      POSTGRES_PASSWORD: config_pass_2025
+    volumes:
+      - postgres-config-data:/var/lib/postgresql/data
+      # Автоматическая инициализация схемы
+      - ./Data:/docker-entrypoint-initdb.d:ro
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U config_admin -d config_service_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+volumes:
+  postgres-config-data:

@@ -1,0 +1,78 @@
+default:
+  image: docker:24.0.5
+  services:
+    - docker:24.0.5-dind
+  tags: [werf] 
+ 
+variables:
+    IMAGE_NAME: "reg.pit.protei.ru/safe-city/auth"
+    IMAGE_TAG: "latest"
+    COMPOSE_FILE: "docker-compose.yml"
+    COMPOSE_PROJECT_NAME: "auth-service"
+
+stages:
+  - build 
+  - deploy
+
+build-prod:
+  image: docker:latest
+  stage: build
+  before_script:
+    - docker context use default
+  script:
+    - docker build -t "$IMAGE_NAME:$IMAGE_TAG" -f API/Dockerfile .
+    - docker image ls
+
+    - docker login -u "$HARBOR_USERNAME" -p "$HARBOR_PASSWORD" "$HARBOR_HOST"
+    - docker push "$IMAGE_NAME":"$IMAGE_TAG"
+  only:
+    - main
+
+
+trigger_infra_deploy_srub:
+  stage: deploy
+  script:
+    - |
+      curl -X POST \
+        -F token=${INFRA_TRIGGER_TOKEN} \
+        -F ref=main \
+        -F "variables[TARGET_STACK]=backend" \
+        -F "variables[TARGET_SERVICE]=auth-service" \
+        -F "variables[TARGET_ZONE]=srub" \
+        -F "variables[GIT_COMMIT_URL]=$SERVICE_COMMIT_URL" \
+        https://git.pit.protei.ru/api/v4/projects/184/trigger/pipeline
+  when: on_success
+  only:
+    - main
+
+trigger_infra_deploy_preprod:
+  stage: deploy
+  script:
+    - |
+      curl -X POST \
+        -F token=${INFRA_TRIGGER_TOKEN} \
+        -F ref=main \
+        -F "variables[TARGET_STACK]=backend" \
+        -F "variables[TARGET_SERVICE]=auth-service" \
+        -F "variables[TARGET_ZONE]=gov" \
+        -F "variables[GIT_COMMIT_URL]=$SERVICE_COMMIT_URL" \
+        https://git.pit.protei.ru/api/v4/projects/184/trigger/pipeline
+  when: manual
+  only:
+    - main
+
+trigger_infra_deploy_prod:
+  stage: deploy
+  script:
+    - |
+      curl -X POST \
+        -F token=${INFRA_TRIGGER_TOKEN} \
+        -F ref=main \
+        -F "variables[TARGET_STACK]=backend" \
+        -F "variables[TARGET_SERVICE]=auth-service" \
+        -F "variables[TARGET_ZONE]=stage" \
+        -F "variables[GIT_COMMIT_URL]=$SERVICE_COMMIT_URL" \
+        https://git.pit.protei.ru/api/v4/projects/184/trigger/pipeline
+  when: manual
+  only:
+    - main

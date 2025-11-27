@@ -1,0 +1,1439 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AuthService - Cache & Rate Limiting Sandbox</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+            background: #f5f5f5;
+            color: #333;
+            line-height: 1.4;
+            padding: 5px;
+        }
+
+        .container {
+            max-width: 1600px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 6px;
+            color: #111;
+        }
+
+        h2 {
+            font-size: 14px;
+            font-weight: 600;
+            margin-bottom: 5px;
+            color: #444;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .panel {
+            background: white;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            padding: 10px;
+            margin-bottom: 5px;
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 5px;
+            align-items: stretch;
+        }
+
+        .grid > .panel {
+            display: flex;
+            flex-direction: column;
+            height: 100%;
+            justify-content: space-between;
+        }
+
+        .grid-3 {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 5px;
+        }
+
+        .input-group {
+            margin-bottom: 0;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            color: #666;
+            margin-bottom: 3px;
+        }
+
+        input[type="text"],
+        input[type="password"] {
+            width: 100%;
+            padding: 6px 10px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-size: 13px;
+            font-family: 'Courier New', monospace;
+            transition: border-color 0.2s;
+        }
+
+        input[type="text"]:focus,
+        input[type="password"]:focus {
+            outline: none;
+            border-color: #888;
+        }
+
+        button {
+            padding: 6px 12px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: white;
+            color: #333;
+            font-size: 12px;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s;
+            margin-right: 5px;
+            margin-bottom: 5px;
+        }
+
+        button:hover {
+            background: #f5f5f5;
+            border-color: #999;
+        }
+
+        button:active {
+            background: #e5e5e5;
+        }
+
+        button.danger {
+            color: #d00;
+        }
+
+        button.danger:hover {
+            background: #fff0f0;
+            border-color: #d00;
+        }
+
+        .output {
+            background: #fafafa;
+            border: 1px solid #e5e5e5;
+            border-radius: 3px;
+            padding: 8px;
+            margin-top: 6px;
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            white-space: pre-wrap;
+            word-break: break-all;
+            max-height: 150px;
+            overflow-y: auto;
+        }
+
+        .metrics {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 8px;
+            margin-top: 0;
+        }
+
+        .metric {
+            background: #fafafa;
+            border: 1px solid #e5e5e5;
+            border-radius: 3px;
+            padding: 6px;
+        }
+
+        .metric-label {
+            font-size: 10px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 2px;
+        }
+
+        .metric-value {
+            font-size: 14px;
+            font-weight: 600;
+            font-family: 'Courier New', monospace;
+            color: #111;
+        }
+
+        .test-case {
+            background: #fafafa;
+            border-left: 3px solid #666;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+            font-size: 12px;
+        }
+
+        .test-case-title {
+            font-weight: 600;
+            color: #333;
+            margin-bottom: 3px;
+        }
+
+        .test-case-desc {
+            color: #666;
+            font-size: 12px;
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 11px;
+            margin-top: 6px;
+        }
+
+        .data-table th {
+            background: #f5f5f5;
+            border: 1px solid #e5e5e5;
+            padding: 5px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 10px;
+            text-transform: uppercase;
+            color: #666;
+        }
+
+        .data-table td {
+            border: 1px solid #e5e5e5;
+            padding: 5px;
+            font-family: 'Courier New', monospace;
+            color: #333;
+        }
+
+        .data-table tr:hover {
+            background: #fafafa;
+        }
+
+        .status {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-size: 11px;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .status.healthy {
+            background: #e8f5e9;
+            color: #2e7d32;
+        }
+
+        .status.unhealthy {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .buttons {
+            margin-top: 0;
+            margin-bottom: 0;
+        }
+
+        .empty-state {
+            text-align: center;
+            color: #999;
+            padding: 20px;
+            font-size: 13px;
+        }
+
+        /* Modal styles */
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+            animation: fadeIn 0.2s;
+        }
+
+        .modal-content {
+            background-color: white;
+            margin: 10% auto;
+            padding: 20px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+            width: 500px;
+            max-width: 90%;
+            animation: slideDown 0.3s;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #ddd;
+        }
+
+        .modal-header h2 {
+            margin: 0;
+            font-size: 16px;
+            color: #28a745;
+        }
+
+        .close {
+            color: #aaa;
+            font-size: 28px;
+            font-weight: bold;
+            cursor: pointer;
+            line-height: 20px;
+        }
+
+        .close:hover {
+            color: #000;
+        }
+
+        .modal-body {
+            margin-bottom: 15px;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 10px;
+            padding-top: 15px;
+            border-top: 1px solid #ddd;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideDown {
+            from {
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to {
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1 style="font-size: 24px; font-weight: 500; margin-bottom: 20px; color: #333;">Микросервис авторизации</h1>
+
+        <!-- Connection Status -->
+        <div class="panel">
+            <h2>🔌 Connection Status</h2>
+            <div class="grid-3">
+                <div class="metric">
+                    <div class="metric-label">PostgreSQL</div>
+                    <div class="metric-value" id="postgres-status">Loading...</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Tarantool</div>
+                    <div style="display: flex; align-items: center;">
+                        <div class="metric-value" id="tarantool-status">Loading...</div>
+                        <div style="margin-left: 12px; display: flex; gap: 4px;">
+                            <button onclick="enableTarantool()" style="font-size: 10px; padding: 3px 8px; background: #e8f5e9; color: #2e7d32; border-color: #c8e6c9;">Enable</button>
+                            <button onclick="disableTarantool()" style="font-size: 10px; padding: 3px 8px; background: #ffebee; color: #c62828; border-color: #ffcdd2;">Disable</button>
+                        </div>
+                    </div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Eureka</div>
+                    <div class="metric-value" id="eureka-status">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Database State -->
+        <div class="panel">
+            <h2>PostgreSQL Users</h2>
+            <div id="postgres-users">
+                <div class="empty-state">Loading...</div>
+            </div>
+
+            <div class="buttons" style="margin-top: 10px;">
+                <button onclick="refreshAllData()" style="background: #cccccc; color: #666;">Refresh all database data</button>
+                <button onclick="openCreateUserModal()" style="background: #28a745; color: white; border-color: #28a745;">➕ Add New User</button>
+            </div>
+
+            <!-- Tarantool Data -->
+            <div style="margin-top: 15px;">
+                <h3 style="font-size: 13px; font-weight: 600; color: #2196F3; margin-bottom: 10px;">Tarantool: user_cache</h3>
+                <div id="tarantool-user-cache-table">
+                    <div class="empty-state">Loading...</div>
+                </div>
+            </div>
+
+            <div style="margin-top: 15px;">
+                <h3 style="font-size: 13px; font-weight: 600; color: #FF9800; margin-bottom: 10px;">Tarantool: wrong login attempts by login:ip</h3>
+                <div id="tarantool-login-attempts-table">
+                    <div class="empty-state">Loading...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Tarantool Status - Full Width -->
+        <div class="panel">
+            <h2>Tarantool Status</h2>
+            <div class="grid-3">
+                <div class="metric">
+                    <div class="metric-label">Health</div>
+                    <div class="metric-value" id="health-status">-</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">User Cache</div>
+                    <div class="metric-value" id="cache-count">-</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Login Records</div>
+                    <div class="metric-value" id="attempts-count">-</div>
+                </div>
+            </div>
+
+            <div class="buttons" style="margin-top: 10px;">
+                <button onclick="clearAllData()" class="danger">Clear All Tarantool Cache</button>
+            </div>
+        </div>
+
+        <!-- Feature Toggles -->
+        <div class="panel">
+            <h2>Feature Toggles</h2>
+            <div class="grid-3">
+                <div class="metric">
+                    <div class="metric-label">User Cache</div>
+                    <div class="metric-value" id="user-cache-status">Loading...</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">Rate Limiting</div>
+                    <div class="metric-value" id="rate-limit-status">Loading...</div>
+                </div>
+                <div class="metric">
+                    <div class="metric-label">TTL</div>
+                    <div class="metric-value" id="cache-ttl-status">-</div>
+                </div>
+            </div>
+
+            <div class="buttons" style="margin-top: 10px;">
+                <button onclick="toggleUserCache(true)" style="background: #4CAF50;">Enable User Cache</button>
+                <button onclick="toggleUserCache(false)" style="background: #f44336; color: #cccccc;">Disable User Cache</button>
+                <button onclick="toggleRateLimiting(true)" style="background: #2196F3;">Enable Rate Limiting</button>
+                <button onclick="toggleRateLimiting(false)" style="background: #FF9800;">Disable Rate Limiting</button>
+            </div>
+        </div>
+
+        <!-- Testing Section -->
+        <div class="grid">
+            <!-- User Cache Testing -->
+            <div class="panel">
+                <h2>User Cache Testing</h2>
+                <div class="input-group">
+                    <label>User ID (Guid)</label>
+                    <input type="text" id="userId" placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000">
+                </div>
+                <div class="input-group">
+                    <label>New Email (for update test)</label>
+                    <input type="text" id="newEmail" placeholder="test@example.com">
+                </div>
+                <div class="buttons">
+                    <button onclick="getUser()" style="background: #e3f2fd; color: #1565c0; border-color: #bbdefb;">Get User</button>
+                    <button onclick="updateEmail()" style="background: #fff3e0; color: #e65100; border-color: #ffe0b2;">Update Email</button>
+                    <button onclick="invalidateCache()" style="background: #fce4ec; color: #c2185b; border-color: #f8bbd0;">Invalidate Cache</button>
+                </div>
+                <div class="metrics" style="display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;">
+                    <div class="metric">
+                        <div class="metric-label">Full Response <span style="font-size: 9px; color: #999; font-weight: normal; text-transform: none; letter-spacing: 0;">(браузер ↔ сервер)</span></div>
+                        <div class="metric-value" id="cache-time-full">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Server Response <span style="font-size: 9px; color: #999; font-weight: normal; text-transform: none; letter-spacing: 0;">(обработка)</span></div>
+                        <div class="metric-value" id="cache-time-server">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Cache Status</div>
+                        <div class="metric-value" id="cache-status">-</div>
+                    </div>
+                </div>
+
+                <!-- Performance Comparison -->
+                <div style="padding: 8px; background: #f8f9fa; border: 1px solid #dee2e6; border-radius: 4px;">
+                    <div style="font-size: 12px; font-weight: 600; color: #495057; margin-bottom: 6px;">📊 Performance Statistics</div>
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-bottom: 6px;">
+                        <div style="padding: 6px; background: #d4edda; border: 1px solid #c3e6cb; border-radius: 3px;">
+                            <div style="font-size: 10px; color: #155724; font-weight: 600;">⚡ Tarantool (HIT)</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #155724; line-height: 1.2;" id="hit-avg-time">-</div>
+                            <div style="font-size: 9px; color: #155724;">Count: <span id="hit-count">0</span></div>
+                        </div>
+                        <div style="padding: 6px; background: #fff3cd; border: 1px solid #ffc107; border-radius: 3px;">
+                            <div style="font-size: 10px; color: #856404; font-weight: 600;">🐘 PostgreSQL (MISS)</div>
+                            <div style="font-size: 14px; font-weight: bold; color: #856404; line-height: 1.2;" id="miss-avg-time">-</div>
+                            <div style="font-size: 9px; color: #856404;">Count: <span id="miss-count">0</span></div>
+                        </div>
+                    </div>
+                    <div style="font-size: 10px; color: #666; font-weight: 600; margin-bottom: 3px;">Last 5:</div>
+                    <div id="request-history" style="font-size: 10px; color: #666; font-family: monospace; line-height: 1.4;">
+                        No requests yet
+                    </div>
+                </div>
+            </div>
+
+            <!-- Real Login with Rate Limiting -->
+            <div class="panel">
+                <h2>✅ Real Login with Rate Limiting (/api/auth/login)</h2>
+                <div id="rate-limit-settings" style="background: #fff3cd; border: 1px solid #ffc107; padding: 10px; border-radius: 4px; margin-bottom: 15px; font-size: 13px;">
+                    <strong>⚙️ Rate Limiting Settings:</strong><br>
+                    📌 Max Attempts: <strong id="rl-max-attempts">-</strong> (макс. неудачных попыток)<br>
+                    📌 Окно сброса счетчика: <strong id="rl-window">-</strong><br>
+                    📌 Ban Duration: <strong id="rl-ban-duration">-</strong> (блокировка после превышения лимита)<br>
+                    📝 <em>Настройки в файле: appsettings.json → Cache</em>
+                </div>
+                <div class="input-group">
+                    <label>Login (admin or user)</label>
+                    <input type="text" id="login" value="admin">
+                </div>
+                <div class="input-group">
+                    <label>Password (admin or user)</label>
+                    <input type="password" id="password" value="admin">
+                </div>
+                <div class="input-group">
+                    <label>IP Address</label>
+                    <input type="text" id="ipAddress" value="127.0.0.1">
+                </div>
+                <div class="buttons">
+                    <button onclick="testLogin()">Test Login</button>
+                    <button onclick="resetRateLimit()">Reset Counter</button>
+                </div>
+                <div class="metrics">
+                    <div class="metric">
+                        <div class="metric-label">Allowed</div>
+                        <div class="metric-value" id="rate-allowed">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Remaining</div>
+                        <div class="metric-value" id="rate-remaining">-</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Retry After</div>
+                        <div class="metric-value" id="rate-retry">-</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api/test';
+
+        // Performance tracking
+        const performanceStats = {
+            hits: [],
+            misses: [],
+            history: []
+        };
+
+        function updatePerformanceStats(time, isHit) {
+            const status = isHit ? 'HIT' : 'MISS';
+
+            // Add to appropriate array
+            if (isHit) {
+                performanceStats.hits.push(time);
+            } else {
+                performanceStats.misses.push(time);
+            }
+
+            // Add to history (keep last 5)
+            performanceStats.history.unshift({ time, status, timestamp: new Date() });
+            if (performanceStats.history.length > 5) {
+                performanceStats.history.pop();
+            }
+
+            // Update UI
+            // Calculate averages
+            const avgHit = performanceStats.hits.length > 0
+                ? Math.round(performanceStats.hits.reduce((a, b) => a + b, 0) / performanceStats.hits.length)
+                : 0;
+            const avgMiss = performanceStats.misses.length > 0
+                ? Math.round(performanceStats.misses.reduce((a, b) => a + b, 0) / performanceStats.misses.length)
+                : 0;
+
+            // Update average times
+            document.getElementById('hit-avg-time').textContent = performanceStats.hits.length > 0 ? `${avgHit} ms` : '-';
+            document.getElementById('miss-avg-time').textContent = performanceStats.misses.length > 0 ? `${avgMiss} ms` : '-';
+
+            // Update counts
+            document.getElementById('hit-count').textContent = performanceStats.hits.length;
+            document.getElementById('miss-count').textContent = performanceStats.misses.length;
+
+            // Update history
+            const historyHtml = performanceStats.history.map(h => {
+                const badge = h.status === 'HIT'
+                    ? '<span style="background: #28a745; color: white; padding: 2px 4px; border-radius: 2px; font-size: 9px;">HIT</span>'
+                    : '<span style="background: #ffc107; color: #856404; padding: 2px 4px; border-radius: 2px; font-size: 9px;">MISS</span>';
+                return `${badge} ${h.time}ms`;
+            }).join(' • ');
+
+            document.getElementById('request-history').innerHTML = historyHtml || 'No requests yet';
+        }
+
+        function log(action, details = '', isError = false) {
+            const time = new Date().toLocaleTimeString();
+            const message = `[${time}] ${action}${details ? ': ' + details : ''}`;
+            if (isError) {
+                console.error(message);
+            } else {
+                console.log(message);
+            }
+        }
+
+        async function checkConnectionStatus() {
+            // Check PostgreSQL
+            try {
+                const response = await fetch(`${API_BASE}/db/users`);
+                if (response.ok) {
+                    document.getElementById('postgres-status').innerHTML = '<span class="status healthy">✓ Connected</span>';
+                } else {
+                    document.getElementById('postgres-status').innerHTML = '<span class="status unhealthy">✗ Error</span>';
+                }
+            } catch (err) {
+                document.getElementById('postgres-status').innerHTML = '<span class="status unhealthy">✗ Disconnected</span>';
+            }
+
+            // Tarantool status is managed by refreshTarantoolStatus() - don't update here
+
+            // Check Eureka
+            try {
+                const response = await fetch('/health');
+                if (response.ok) {
+                    const data = await response.json();
+                    // Check if 'eureka' health check exists in the response
+                    const eurekaCheck = data.checks?.find(c => c.name === 'eureka');
+                    if (eurekaCheck) {
+                        if (eurekaCheck.status === 'Healthy') {
+                            document.getElementById('eureka-status').innerHTML = '<span class="status healthy">✓ Registered</span>';
+                        } else {
+                            document.getElementById('eureka-status').innerHTML = '<span class="status unhealthy">✗ Unhealthy</span>';
+                        }
+                    } else {
+                        // Eureka health check not found - means it's disabled
+                        document.getElementById('eureka-status').innerHTML = '<span class="status unhealthy">Disabled</span>';
+                    }
+                } else {
+                    document.getElementById('eureka-status').innerHTML = '<span class="status unhealthy">✗ Error</span>';
+                }
+            } catch (err) {
+                document.getElementById('eureka-status').innerHTML = '<span class="status unhealthy">✗ Unknown</span>';
+            }
+        }
+
+        async function refreshStats() {
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/stats`);
+                const data = await response.json();
+
+                document.getElementById('health-status').innerHTML = `<span class="status ${data.health === 'healthy' ? 'healthy' : 'unhealthy'}">${data.health}</span>`;
+                document.getElementById('cache-count').textContent = data.spaces.userCache;
+                document.getElementById('attempts-count').textContent = data.spaces.loginAttempts;
+
+                log('Stats refreshed', `Cache: ${data.spaces.userCache}, Login Records: ${data.spaces.loginAttempts}`);
+            } catch (err) {
+                log('Error refreshing stats', err.message, true);
+                document.getElementById('health-status').innerHTML = `<span class="status unhealthy">error</span>`;
+            }
+        }
+
+        async function refreshPostgresUsers() {
+            try {
+                const response = await fetch(`${API_BASE}/db/users`);
+                const users = await response.json();
+
+                if (users.length === 0) {
+                    document.getElementById('postgres-users').innerHTML = '<div class="empty-state">No users found</div>';
+                    return;
+                }
+
+                let html = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>User ID</th>
+                                <th>Login</th>
+                                <th>Password Hash</th>
+                                <th>Email</th>
+                                <th>Roles</th>
+                                <th>Active</th>
+                                <th>2FA</th>
+                                <th>Created</th>
+                                <th>Last Login</th>
+                                <th>Last IP</th>
+                                <th>Refresh Tokens</th>
+                                <th>Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                `;
+
+                for (const user of users) {
+                    const roles = user.roles && user.roles.length > 0 ? user.roles.join(', ') : '-';
+                    const lastLogin = user.lastLoginAt ? new Date(user.lastLoginAt).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'}) : '-';
+                    const lastIp = user.lastLoginIp || '-';
+                    const createdAt = new Date(user.createdAt).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                    const passwordHashPreview = user.passwordHash ? user.passwordHash.substring(0, 30) + '...' : '-';
+
+                    // Calculate tokens info
+                    const tokens = user.refreshTokens || [];
+                    const validTokens = tokens.filter(t => !t.isRevoked && !t.isExpired);
+                    const tokensInfo = tokens.length > 0 ? `${validTokens.length}/${tokens.length}` : '0';
+
+                    // Log tokens to console (not to page for security)
+                    if (tokens.length > 0) {
+                        console.log(`User ${user.login} (${user.id}) tokens:`, tokens);
+                    }
+
+                    // Build tokens detail popup (without full tokens)
+                    let tokensDetail = '';
+                    if (tokens.length > 0) {
+                        tokensDetail = `<div style="display: none;" id="tokens-${user.id}" class="tokens-popup">`;
+                        tokensDetail += '<table class="data-table" style="font-size: 10px; margin-top: 5px;">';
+                        tokensDetail += '<thead><tr><th>Token Preview</th><th>Expires</th><th>Created</th><th>Created IP</th><th>Status</th></tr></thead><tbody>';
+                        for (const token of tokens) {
+                            const status = token.isRevoked ? 'Revoked' : (token.isExpired ? 'Expired' : 'Valid');
+                            const statusColor = token.isRevoked ? 'red' : (token.isExpired ? 'orange' : 'green');
+                            const expiresAt = new Date(token.expires).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                            const createdAt = new Date(token.createdAt).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+
+                            tokensDetail += `<tr>
+                                <td style="font-family: monospace; font-size: 9px;">${token.tokenPreview}</td>
+                                <td>${expiresAt}</td>
+                                <td>${createdAt}</td>
+                                <td style="font-family: monospace; font-size: 9px;">${token.createdByIp}</td>
+                                <td style="color: ${statusColor}; font-weight: bold;">${status}</td>
+                            </tr>`;
+                        }
+                        tokensDetail += '</tbody></table></div>';
+                    }
+
+                    html += `<tr>
+                        <td style="font-size: 10px; font-family: monospace;">
+                            ${user.id}
+                            <br>
+                            <button onclick="fillUserId('${user.id}')" style="font-size: 9px; padding: 2px 6px; margin-top: 3px; background: #e0e0e0; border: 1px solid #999; cursor: pointer;">Use in Test</button>
+                        </td>
+                        <td><strong>${user.login}</strong></td>
+                        <td style="font-size: 9px; font-family: monospace;" title="${user.passwordHash || ''}">${passwordHashPreview}</td>
+                        <td>
+                            ${user.email || '-'}
+                            ${user.email ? `<br><button onclick="fillEmail('${user.email}')" style="font-size: 9px; padding: 2px 6px; margin-top: 3px; background: #e0e0e0; border: 1px solid #999; cursor: pointer;">Use in Test</button>` : ''}
+                        </td>
+                        <td style="font-size: 11px;">${roles}</td>
+                        <td>${user.isActive ? '✓' : '✗'}</td>
+                        <td>${user.isOtpEnabled ? '✓' : '✗'}</td>
+                        <td style="font-size: 10px;">${createdAt}</td>
+                        <td style="font-size: 10px;">${lastLogin}</td>
+                        <td style="font-size: 9px; font-family: monospace;">${lastIp}</td>
+                        <td>
+                            ${tokens.length > 0 ? `<a href="#" onclick="toggleTokens('${user.id}'); return false;" style="text-decoration: underline; cursor: pointer;">${tokensInfo}</a>` : tokensInfo}
+                            ${tokensDetail}
+                        </td>
+                        <td>
+                            <button onclick="deleteUser('${user.id}', '${user.login}')" class="danger" style="font-size: 9px; padding: 2px 6px; background: #ffe0e0; color: #d00;">Delete</button>
+                        </td>
+                    </tr>`;
+                }
+                html += '</tbody></table>';
+                document.getElementById('postgres-users').innerHTML = html;
+
+                log('PostgreSQL users refreshed', `${users.length} users`);
+            } catch (err) {
+                log('Error fetching PostgreSQL users', err.message, true);
+                document.getElementById('postgres-users').innerHTML = '<div class="empty-state">Error loading users</div>';
+            }
+        }
+
+        function toggleTokens(userId) {
+            const popup = document.getElementById(`tokens-${userId}`);
+            if (popup) {
+                popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+            }
+        }
+
+        function fillUserId(userId) {
+            document.getElementById('userId').value = userId;
+            // Scroll to User Cache Testing panel
+            document.getElementById('userId').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Highlight the field briefly
+            const field = document.getElementById('userId');
+            field.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                field.style.backgroundColor = '';
+            }, 1000);
+        }
+
+        function fillEmail(email) {
+            document.getElementById('newEmail').value = email;
+            // Scroll to User Cache Testing panel
+            document.getElementById('newEmail').scrollIntoView({ behavior: 'smooth', block: 'center' });
+            // Highlight the field briefly
+            const field = document.getElementById('newEmail');
+            field.style.backgroundColor = '#fff3cd';
+            setTimeout(() => {
+                field.style.backgroundColor = '';
+            }, 1000);
+        }
+
+        async function deleteUser(userId, login) {
+            if (!confirm(`Are you sure you want to delete user "${login}"?\n\nUser ID: ${userId}\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/db/users/${userId}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    log('Delete User', `User ${login} (${userId}) deleted successfully`);
+                    await refreshAllData();
+                } else {
+                    const errorText = await response.text();
+                    log('Error deleting user', `${response.status}: ${errorText}`, true);
+                    alert(`Error deleting user: ${errorText}`);
+                }
+            } catch (err) {
+                log('Error deleting user', err.message, true);
+                alert('Error deleting user: ' + err.message);
+            }
+        }
+
+        async function loadRateLimitSettings() {
+            try {
+                const response = await fetch(`${API_BASE}/config`);
+                const data = await response.json();
+
+                const maxAttempts = data.cache.loginRateLimitMaxAttempts;
+                const windowSeconds = data.cache.loginRateLimitWindowSeconds;
+                const blockSeconds = data.cache.loginRateLimitBlockDurationSeconds;
+
+                document.getElementById('rl-max-attempts').textContent = maxAttempts;
+                document.getElementById('rl-window').textContent = `${Math.floor(windowSeconds / 60)} минут`;
+                document.getElementById('rl-ban-duration').textContent = `${Math.floor(blockSeconds / 60)} минут`;
+
+                // Update feature toggles status
+                updateFeatureTogglesStatus(data.cache);
+
+                log('Rate Limit Settings Loaded', `Max: ${maxAttempts}, Window: ${windowSeconds}s, Block: ${blockSeconds}s`);
+            } catch (err) {
+                log('Error loading rate limit settings', err.message, true);
+            }
+        }
+
+        function updateFeatureTogglesStatus(cacheConfig) {
+            const userCacheEnabled = cacheConfig.userCacheEnabled;
+            const rateLimitEnabled = cacheConfig.loginRateLimitingEnabled;
+            const ttl = cacheConfig.userCacheTtlSeconds;
+
+            document.getElementById('user-cache-status').innerHTML = userCacheEnabled
+                ? '<span class="status healthy">ENABLED ✅</span>'
+                : '<span class="status unhealthy">DISABLED ❌</span>';
+
+            document.getElementById('rate-limit-status').innerHTML = rateLimitEnabled
+                ? '<span class="status healthy">ENABLED ✅</span>'
+                : '<span class="status unhealthy">DISABLED ❌</span>';
+
+            document.getElementById('cache-ttl-status').textContent = `${ttl}s`;
+        }
+
+        async function toggleUserCache(enabled) {
+            try {
+                const response = await fetch(`${API_BASE}/toggle-user-cache`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+
+                const result = await response.json();
+
+                document.getElementById('user-cache-status').innerHTML = enabled
+                    ? '<span class="status healthy">ENABLED ✅</span>'
+                    : '<span class="status unhealthy">DISABLED ❌</span>';
+
+                log('User Cache Toggle', result.message);
+            } catch (err) {
+                log('Error toggling user cache', err.message, true);
+            }
+        }
+
+        async function toggleRateLimiting(enabled) {
+            try {
+                const response = await fetch(`${API_BASE}/toggle-rate-limiting`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ enabled: enabled })
+                });
+
+                const result = await response.json();
+
+                document.getElementById('rate-limit-status').innerHTML = enabled
+                    ? '<span class="status healthy">ENABLED ✅</span>'
+                    : '<span class="status unhealthy">DISABLED ❌</span>';
+
+                log('Rate Limiting Toggle', result.message);
+            } catch (err) {
+                log('Error toggling rate limiting', err.message, true);
+            }
+        }
+
+        async function refreshTarantoolUserCacheTable() {
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/user-cache/all`);
+                const result = await response.json();
+                const container = document.getElementById('tarantool-user-cache-table');
+
+                if (!result.data || result.data.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No cached users</div>';
+                    return;
+                }
+
+                let html = `<table class="data-table" style="font-size: 10px;">
+                    <thead>
+                        <tr>
+                            <th>User ID</th>
+                            <th>Login</th>
+                            <th>Email</th>
+                            <th>Active</th>
+                            <th>Roles</th>
+                            <th>Created At</th>
+                            <th>Expires At</th>
+                            <th>TTL</th>
+                            <th>Version</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                result.data.forEach(item => {
+                    const createdAt = new Date(item.created_at * 1000).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                    const expiresAt = new Date(item.expires_at * 1000).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                    const roles = item.roles_json || '-';
+
+                    html += `<tr>
+                        <td style="font-family: monospace; font-size: 9px;">${item.user_id}</td>
+                        <td><strong>${item.login}</strong></td>
+                        <td>${item.email || '-'}</td>
+                        <td>${item.is_active ? '✓' : '✗'}</td>
+                        <td style="font-size: 9px;">${roles}</td>
+                        <td>${createdAt}</td>
+                        <td>${expiresAt}</td>
+                        <td>${item.ttl_remaining}s</td>
+                        <td>${item.version || 0}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Error loading Tarantool user_cache:', err);
+                document.getElementById('tarantool-user-cache-table').innerHTML = '<div class="empty-state">Error loading</div>';
+            }
+        }
+
+        async function refreshTarantoolLoginAttemptsTable() {
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/login-attempts/all`);
+                const result = await response.json();
+                const container = document.getElementById('tarantool-login-attempts-table');
+
+                if (!result.data || result.data.length === 0) {
+                    container.innerHTML = '<div class="empty-state">No login attempts</div>';
+                    return;
+                }
+
+                let html = `<table class="data-table" style="font-size: 10px;">
+                    <thead>
+                        <tr>
+                            <th>Login / IP</th>
+                            <th>Attempts</th>
+                            <th>First Attempt</th>
+                            <th>Expires At</th>
+                            <th>TTL</th>
+                            <th>Status</th>
+                            <th>Block TTL</th>
+                        </tr>
+                    </thead>
+                    <tbody>`;
+
+                result.data.forEach(item => {
+                    const firstAttempt = new Date(item.first_attempt * 1000).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                    const expiresAt = new Date(item.expires_at * 1000).toLocaleString('ru-RU', {dateStyle: 'short', timeStyle: 'short'});
+                    const statusHtml = item.is_blocked
+                        ? '<span style="display: inline-block; width: 70px; text-align: center; background: #ffe0e0; color: #d00; padding: 2px 8px; border-radius: 3px; font-weight: bold;">BLOCKED</span>'
+                        : '<span style="display: inline-block; width: 70px; text-align: center; background: #fff3cd; color: #856404; padding: 2px 8px; border-radius: 3px; font-weight: bold;">Active</span>';
+
+                    html += `<tr>
+                        <td style="font-family: monospace; font-size: 9px;">${item.login_or_ip}</td>
+                        <td><strong>${item.attempt_count}</strong></td>
+                        <td>${firstAttempt}</td>
+                        <td>${expiresAt}</td>
+                        <td>${item.ttl_remaining}s</td>
+                        <td>${statusHtml}</td>
+                        <td>${item.is_blocked ? item.block_ttl_remaining + 's' : '-'}</td>
+                    </tr>`;
+                });
+
+                html += '</tbody></table>';
+                container.innerHTML = html;
+            } catch (err) {
+                console.error('Error loading Tarantool login_attempts:', err);
+                document.getElementById('tarantool-login-attempts-table').innerHTML = '<div class="empty-state">Error loading</div>';
+            }
+        }
+
+        async function refreshAllData() {
+            await Promise.all([
+                checkConnectionStatus(),
+                refreshStats(),
+                refreshPostgresUsers(),
+                refreshTarantoolUserCacheTable(),
+                refreshTarantoolLoginAttemptsTable()
+            ]);
+        }
+
+        async function getUser() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) {
+                alert('Please enter User ID');
+                return;
+            }
+
+            const start = performance.now();
+            try {
+                const response = await fetch(`${API_BASE}/cache/user/${userId}`);
+                const data = await response.json();
+                const time = Math.round(performance.now() - start);
+
+                // Use SERVER response time
+                const serverTime = data.serverProcessingTime || data.responseTime || time;
+
+                // Get actual cache source from server
+                const source = data.source || 'unknown';
+                const cacheStatus = data.cacheStatus || 'unknown';
+
+                // Determine if it was a HIT (from Tarantool) or MISS (from PostgreSQL)
+                const isHit = source === 'tarantool' && cacheStatus === 'hit';
+                const isMiss = source === 'postgresql' && cacheStatus === 'miss';
+                const isDbOnly = source === 'db-only' && cacheStatus === 'cache-disabled';
+
+                // Log to console for debugging
+                console.log('Get User Response:', data);
+                console.log(`Times: Full=${time}ms, Server=${serverTime}ms, Source=${source}, Status=${cacheStatus}`);
+
+                document.getElementById('cache-time-full').textContent = time + ' ms';
+                document.getElementById('cache-time-server').textContent = serverTime + ' ms';
+
+                // Update cache status text based on actual source
+                if (isDbOnly) {
+                    document.getElementById('cache-status').textContent = 'DB-ONLY (cache disabled)';
+                } else if (isHit) {
+                    document.getElementById('cache-status').textContent = 'HIT (Tarantool)';
+                } else if (isMiss) {
+                    document.getElementById('cache-status').textContent = 'MISS (PostgreSQL)';
+                } else {
+                    document.getElementById('cache-status').textContent = `Unknown (${source}/${cacheStatus})`;
+                }
+
+                // Update performance stats
+                // For db-only mode, treat all requests as MISS (PostgreSQL access)
+                if (isHit) {
+                    console.log('Updating stats: HIT');
+                    updatePerformanceStats(serverTime, true);
+                } else if (isMiss || isDbOnly) {
+                    console.log('Updating stats: MISS (isMiss=' + isMiss + ', isDbOnly=' + isDbOnly + ')');
+                    updatePerformanceStats(serverTime, false);
+                } else {
+                    console.log('NOT updating stats: unknown state', { isHit, isMiss, isDbOnly, source, cacheStatus });
+                }
+
+                const statusText = isDbOnly ? 'DB-ONLY' : (isHit ? 'HIT' : 'MISS');
+                log('Get User', `${userId} (${time}ms, ${statusText})`);
+                await refreshAllData();
+            } catch (err) {
+                const time = Math.round(performance.now() - start);
+                console.error('Get User Error:', err);
+                document.getElementById('cache-time-full').textContent = time + ' ms';
+                document.getElementById('cache-time-server').textContent = '-';
+                document.getElementById('cache-status').textContent = 'ERROR';
+                log('Error getting user', err.message, true);
+            }
+        }
+
+        async function updateEmail() {
+            const userId = document.getElementById('userId').value.trim();
+            const email = document.getElementById('newEmail').value.trim();
+            if (!userId || !email) {
+                alert('Please enter User ID and Email');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/cache/user/${userId}/email`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ email })
+                });
+                const data = await response.json();
+
+                log('Update Email', `${userId} → ${email} (${data.responseTime}ms, cache invalidated)`);
+                await refreshAllData();
+            } catch (err) {
+                log('Error updating email', err.message, true);
+                alert('Error updating email: ' + err.message);
+            }
+        }
+
+        async function invalidateCache() {
+            const userId = document.getElementById('userId').value.trim();
+            if (!userId) {
+                alert('Please enter User ID');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/cache/user/${userId}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                log('Invalidate Cache', `User ${userId} - ${data.message}`);
+                await refreshAllData();
+            } catch (err) {
+                log('Error invalidating cache', err.message, true);
+                alert('Error invalidating cache: ' + err.message);
+            }
+        }
+
+        async function testLogin() {
+            const login = document.getElementById('login').value.trim();
+            const password = document.getElementById('password').value;
+            const ipAddress = document.getElementById('ipAddress').value.trim();
+
+            if (!login || !password || !ipAddress) {
+                alert('Please fill all fields');
+                return;
+            }
+
+            try {
+                // ✅ REAL ENDPOINT - полная интеграция с Tarantool, PostgreSQL, JWT
+                const response = await fetch('/api/auth/login', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-Forwarded-For': ipAddress  // Передаем IP для Rate Limiting
+                    },
+                    body: JSON.stringify({ login, password })
+                });
+
+                if (response.ok) {
+                    const data = await response.json();
+
+                    // Успешный логин - получили JWT токены
+                    console.log('✅ Login SUCCESS:', data);
+                    document.getElementById('rate-allowed').textContent = 'YES';
+                    document.getElementById('rate-remaining').textContent = '5'; // Счетчик сброшен
+                    document.getElementById('rate-retry').textContent = '-';
+
+                    // Сохраняем токены
+                    if (data.accessToken) {
+                        localStorage.setItem('accessToken', data.accessToken);
+                    }
+                    if (data.refreshToken) {
+                        localStorage.setItem('refreshToken', data.refreshToken);
+                    }
+
+                    log('Real Login SUCCESS', `${login} → JWT tokens received, Rate Limit RESET to 5`);
+
+                    // Обновляем данные - увидим новый refresh token в PostgreSQL!
+                    await refreshAllData();
+                } else if (response.status === 401) {
+                    // Неверные credentials - Rate Limit счетчик УМЕНЬШИЛСЯ в Tarantool
+                    const errorText = await response.text();
+
+                    // Запросим актуальное состояние счетчика после инкремента
+                    try {
+                        const key = `${login}:${ipAddress}`;
+                        const statusResponse = await fetch(`${API_BASE}/rate-limit/status/${encodeURIComponent(key)}`);
+                        const statusData = await statusResponse.json();
+
+                        console.log('❌ Login FAILED (401):', errorText, 'Status:', statusData);
+                        document.getElementById('rate-allowed').textContent = statusData.allowed ? 'YES' : 'NO (BLOCKED!)';
+                        document.getElementById('rate-remaining').textContent = statusData.remainingAttempts;
+                        document.getElementById('rate-retry').textContent = statusData.retryAfterSeconds > 0 ? statusData.retryAfterSeconds + 's' : '-';
+
+                        log('Real Login FAILED', `${login} → Invalid credentials, Remaining: ${statusData.remainingAttempts} attempts`);
+                    } catch (err) {
+                        console.log('❌ Login FAILED (401):', errorText, 'Error getting status:', err);
+                        document.getElementById('rate-allowed').textContent = 'YES (но credentials неверны)';
+                        document.getElementById('rate-remaining').textContent = '? (ошибка получения статуса)';
+                        document.getElementById('rate-retry').textContent = '-';
+
+                        log('Real Login FAILED', `${login} → Invalid credentials, Rate Limit counter DECREMENTED`);
+                    }
+
+                    // Обновляем данные - увидим изменение в login_attempts space
+                    await refreshAllData();
+                } else {
+                    // Другие ошибки (например, 429 Too Many Requests при блокировке)
+                    const errorText = await response.text();
+
+                    console.log(`❌ Login ERROR (${response.status}):`, errorText);
+                    document.getElementById('rate-allowed').textContent = response.status === 429 ? 'NO (BLOCKED)' : 'ERROR';
+                    document.getElementById('rate-remaining').textContent = '0';
+                    document.getElementById('rate-retry').textContent = response.status === 429 ? 'См. error message' : '-';
+
+                    log('Real Login BLOCKED', `${login} → Rate Limit exceeded, blocked by Tarantool`);
+                    await refreshAllData();
+                }
+            } catch (err) {
+                console.error('❌ Login Exception:', err);
+                log('Error during real login', err.message, true);
+            }
+        }
+
+        async function resetRateLimit() {
+            const login = document.getElementById('login').value.trim();
+            const ipAddress = document.getElementById('ipAddress').value.trim();
+            const key = `${login}:${ipAddress}`;
+
+            try {
+                const response = await fetch(`${API_BASE}/rate-limit/${encodeURIComponent(key)}`, {
+                    method: 'DELETE'
+                });
+                const data = await response.json();
+
+                console.log('🔄 Rate Limit Reset:', data);
+                document.getElementById('rate-allowed').textContent = 'YES';
+                document.getElementById('rate-remaining').textContent = '5';
+                document.getElementById('rate-retry').textContent = '-';
+
+                log('Reset Rate Limit', key);
+                await refreshAllData();
+            } catch (err) {
+                console.error('❌ Rate Limit Reset Error:', err);
+                log('Error resetting rate limit', err.message, true);
+            }
+        }
+
+        async function clearAllData() {
+            if (!confirm('Clear all Tarantool test data?')) return;
+
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/clear`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                log('Clear All Data', 'Tarantool data cleared');
+                await refreshAllData();
+                alert('All test data cleared');
+            } catch (err) {
+                log('Error clearing data', err.message, true);
+                alert('Error: ' + err.message);
+            }
+        }
+
+        // ==========================================
+        // TARANTOOL RUNTIME CONTROL (Late Binding)
+        // ==========================================
+
+        async function refreshTarantoolStatus() {
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/status`);
+                const data = await response.json();
+
+                console.log('Tarantool Status:', data);
+
+                // Update main Tarantool status in Connection Status panel
+                let statusHtml = '';
+                if (data.status === 'enabled-connected') {
+                    statusHtml = '<span class="status healthy">✓ Connected (Enabled)</span>';
+                } else if (data.status === 'enabled-disconnected') {
+                    statusHtml = '<span class="status unhealthy">✗ Disconnected (Enabled)</span>';
+                } else {
+                    statusHtml = '<span class="status unhealthy">Disabled</span>';
+                }
+                document.getElementById('tarantool-status').innerHTML = statusHtml;
+
+                log('Tarantool Status Refreshed', `Enabled: ${data.isEnabled}, Connected: ${data.isConnected}`);
+            } catch (err) {
+                log('Error refreshing Tarantool status', err.message, true);
+                document.getElementById('tarantool-status').innerHTML = '<span class="status unhealthy">✗ Error</span>';
+            }
+        }
+
+        async function enableTarantool() {
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/enable`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                console.log('Tarantool Enable:', data);
+                log('Tarantool Enabled', data.message);
+
+                // Refresh status and config
+                await Promise.all([
+                    refreshTarantoolStatus(),
+                    loadRateLimitSettings(),
+                    checkConnectionStatus(),
+                    refreshStats()
+                ]);
+            } catch (err) {
+                log('Error enabling Tarantool', err.message, true);
+                alert('Error enabling Tarantool: ' + err.message);
+            }
+        }
+
+        async function disableTarantool() {
+            if (!confirm('Disable Tarantool?\n\nAll requests will be redirected to PostgreSQL.')) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/tarantool/disable`, {
+                    method: 'POST'
+                });
+                const data = await response.json();
+
+                console.log('Tarantool Disable:', data);
+                log('Tarantool Disabled', data.message);
+
+                // Refresh status and config
+                await Promise.all([
+                    refreshTarantoolStatus(),
+                    loadRateLimitSettings(),
+                    checkConnectionStatus(),
+                    refreshStats()
+                ]);
+            } catch (err) {
+                log('Error disabling Tarantool', err.message, true);
+                alert('Error disabling Tarantool: ' + err.message);
+            }
+        }
+
+        // Auto-refresh data every 10 seconds
+        setInterval(refreshAllData, 10000);
+
+        // Auto-refresh Tarantool status every 5 seconds
+        setInterval(refreshTarantoolStatus, 5000);
+
+        // Initial load
+        loadRateLimitSettings();  // Загружаем настройки один раз при старте
+        refreshAllData();
+        refreshTarantoolStatus();  // Load Tarantool runtime status
+
+        // Modal functions
+        function openCreateUserModal() {
+            document.getElementById('createUserModal').style.display = 'block';
+            document.getElementById('modal-user-login').focus();
+        }
+
+        function closeCreateUserModal() {
+            document.getElementById('createUserModal').style.display = 'none';
+            // Clear form
+            document.getElementById('modal-user-login').value = '';
+            document.getElementById('modal-user-password').value = '';
+            document.getElementById('modal-user-email').value = '';
+        }
+
+        async function createUser() {
+            const login = document.getElementById('modal-user-login').value.trim();
+            const password = document.getElementById('modal-user-password').value;
+            const email = document.getElementById('modal-user-email').value.trim();
+
+            if (!login || !password) {
+                alert('Please enter login and password');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/db/users`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        login: login,
+                        password: password,
+                        email: email || `${login}@test.com`
+                    })
+                });
+
+                if (response.ok) {
+                    const user = await response.json();
+                    log('Create User', `User ${login} (${user.id}) created successfully`);
+
+                    closeCreateUserModal();
+                    await refreshAllData();
+                    alert(`User "${login}" created successfully!`);
+                } else {
+                    const errorData = await response.json();
+                    log('Error creating user', `${response.status}: ${errorData.error}`, true);
+                    alert(`Error creating user: ${errorData.error}`);
+                }
+            } catch (err) {
+                log('Error creating user', err.message, true);
+                alert('Error creating user: ' + err.message);
+            }
+        }
+
+        // Close modal when clicking outside
+        window.onclick = function(event) {
+            const modal = document.getElementById('createUserModal');
+            if (event.target == modal) {
+                closeCreateUserModal();
+            }
+        }
+    </script>
+
+    <!-- Create User Modal -->
+    <div id="createUserModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2>➕ Create New Test User (No Auth Required)</h2>
+                <span class="close" onclick="closeCreateUserModal()">&times;</span>
+            </div>
+            <div class="modal-body">
+                <div style="background: #fff3cd; padding: 8px; border-radius: 3px; margin-bottom: 12px; font-size: 12px; border: 1px solid #ffc107;">
+                    <strong>ℹ️ Для тестирования:</strong> Создайте пользователя с логином и паролем для последующей авторизации в системе. Пользователь будет добавлен в PostgreSQL и сможет войти через <code>/api/auth/login</code>.
+                </div>
+                <div class="input-group">
+                    <label>Login *</label>
+                    <input type="text" id="modal-user-login" placeholder="testuser">
+                </div>
+                <div class="input-group">
+                    <label>Password *</label>
+                    <input type="password" id="modal-user-password" placeholder="Password123">
+                </div>
+                <div class="input-group">
+                    <label>Email (optional)</label>
+                    <input type="text" id="modal-user-email" placeholder="testuser@test.com">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button onclick="closeCreateUserModal()">Cancel</button>
+                <button onclick="createUser()" style="background: #28a745; color: white; border-color: #28a745;">Create User</button>
+            </div>
+        </div>
+    </div>
+</body>
+</html>

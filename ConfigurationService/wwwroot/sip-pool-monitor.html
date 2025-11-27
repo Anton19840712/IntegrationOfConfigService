@@ -1,0 +1,1227 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ConfigurationService - SIP Pool Monitor</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+            background: #fafafa;
+            color: #333;
+            line-height: 1.6;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            font-size: 24px;
+            font-weight: 500;
+            color: #333;
+            margin-bottom: 24px;
+            letter-spacing: -0.5px;
+        }
+
+        .status-bar {
+            background: #666;
+            color: #ddd;
+            padding: 8px 16px;
+            border-radius: 4px;
+            margin-bottom: 24px;
+            font-family: 'Courier New', monospace;
+            font-size: 12px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .status-bar.updating {
+            animation: pulse 1s ease-in-out infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
+
+        .status-badge {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 11px;
+        }
+
+        .status-badge.connected {
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-badge.connecting {
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-badge.error {
+            background: #ffe0e0;
+            color: #d00;
+        }
+
+        .metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 16px;
+            margin-bottom: 32px;
+        }
+
+        .metric-card {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 16px;
+            transition: all 0.3s ease;
+        }
+
+        .metric-card.flash {
+            animation: flash 0.5s ease-out;
+            background: #f5f5f5;
+        }
+
+        @keyframes flash {
+            0% { background: #f5f5f5; transform: scale(1.02); }
+            50% { background: #e0e0e0; }
+            100% { background: #fff; transform: scale(1); }
+        }
+
+        .metric-label {
+            font-size: 11px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            color: #999;
+            margin-bottom: 8px;
+        }
+
+        .metric-value {
+            font-family: 'Courier New', monospace;
+            font-size: 32px;
+            font-weight: bold;
+            color: #333;
+            line-height: 1;
+        }
+
+        .metric-change {
+            font-family: 'Courier New', monospace;
+            font-size: 11px;
+            color: #666;
+            margin-top: 4px;
+        }
+
+        .chart-container {
+            background: #fff;
+            border: 1px solid #e0e0e0;
+            border-radius: 4px;
+            padding: 16px;
+            margin-bottom: 16px;
+        }
+
+        .chart-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #555;
+            margin-bottom: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 20px;
+            color: #999;
+            font-size: 13px;
+        }
+
+        button {
+            background: #fff;
+            border: 1px solid #999;
+            color: #555;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-family: inherit;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            transition: all 0.2s ease;
+        }
+
+        button:hover {
+            background: #666;
+            color: #fff;
+            border-color: #666;
+        }
+
+        button:active {
+            transform: scale(0.98);
+        }
+
+        .data-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 12px;
+            table-layout: fixed;
+        }
+
+        .data-table th {
+            background: #f5f5f5;
+            border: 1px solid #e0e0e0;
+            padding: 6px 8px;
+            text-align: left;
+            font-weight: 600;
+            font-size: 11px;
+            text-transform: uppercase;
+            color: #666;
+            white-space: nowrap;
+        }
+
+        .data-table td {
+            border: 1px solid #e0e0e0;
+            padding: 6px 8px;
+            font-family: 'Courier New', monospace;
+            color: #333;
+            word-wrap: break-word;
+        }
+
+        .data-table tr:hover {
+            background: #fafafa;
+        }
+
+        .status-active {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 11px;
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .status-inactive {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 11px;
+            background: #ffe0e0;
+            color: #d00;
+        }
+
+        .status-assigned {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 11px;
+            background: #fff3cd;
+            color: #856404;
+        }
+
+        .status-free {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 3px;
+            font-weight: bold;
+            font-size: 11px;
+            background: #d4edda;
+            color: #155724;
+        }
+
+        .pagination {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 8px;
+            margin-top: 12px;
+            font-size: 12px;
+        }
+
+        .pagination button {
+            padding: 4px 12px;
+            font-size: 11px;
+            min-width: 60px;
+        }
+
+        .pagination button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            background: #f5f5f5;
+            color: #999;
+        }
+
+        .pagination-info {
+            color: #666;
+            font-family: 'Courier New', monospace;
+        }
+
+        .filter-input {
+            width: 100%;
+            padding: 4px 6px;
+            margin-top: 4px;
+            font-size: 11px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            background: #fff;
+        }
+
+        .filter-input:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        .sort-indicator {
+            display: inline-block;
+            margin-left: 4px;
+            font-size: 14px;
+            font-weight: bold;
+            color: #333;
+            vertical-align: middle;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.5);
+        }
+
+        .modal-content {
+            background-color: #fff;
+            margin: 10% auto;
+            padding: 24px;
+            border: 1px solid #888;
+            border-radius: 4px;
+            width: 400px;
+            max-width: 90%;
+        }
+
+        .modal-header {
+            font-size: 18px;
+            font-weight: 500;
+            margin-bottom: 16px;
+        }
+
+        .modal-body {
+            margin-bottom: 16px;
+        }
+
+        .form-group {
+            margin-bottom: 12px;
+        }
+
+        .form-group label {
+            display: block;
+            font-size: 12px;
+            font-weight: 500;
+            margin-bottom: 4px;
+            color: #555;
+        }
+
+        .form-group input {
+            width: 100%;
+            padding: 8px;
+            font-size: 12px;
+            border: 1px solid #ddd;
+            border-radius: 3px;
+            font-family: 'Courier New', monospace;
+        }
+
+        .form-group input:focus {
+            outline: none;
+            border-color: #666;
+        }
+
+        .modal-footer {
+            display: flex;
+            justify-content: flex-end;
+            gap: 8px;
+        }
+
+        .btn-cancel {
+            background: #fff;
+            border: 1px solid #999;
+            color: #555;
+        }
+
+        .btn-submit {
+            background: #666;
+            border: 1px solid #666;
+            color: #fff;
+        }
+
+        .btn-submit:hover {
+            background: #555;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>Микросервис конфигураций</h1>
+
+        <div class="status-bar" id="statusBar">
+            <span>PostgreSQL: <span id="dbStatus" class="status-badge">CONNECTING</span></span>
+            <span>RabbitMQ: <span id="rabbitStatus" class="status-badge">CONNECTING</span></span>
+            <span>Eureka: <span id="eurekaStatus" class="status-badge">CONNECTING</span></span>
+            <span id="lastUpdate">Last update: --:--:--</span>
+        </div>
+
+        <div class="metrics-grid">
+            <div class="metric-card" id="metricTotal">
+                <div class="metric-label">Total Accounts</div>
+                <div class="metric-value" id="totalValue">--</div>
+                <div class="metric-change" id="totalChange"></div>
+            </div>
+            <div class="metric-card" id="metricAssigned">
+                <div class="metric-label">Assigned</div>
+                <div class="metric-value" id="assignedValue">--</div>
+                <div class="metric-change" id="assignedChange"></div>
+            </div>
+            <div class="metric-card" id="metricAvailable">
+                <div class="metric-label">Available</div>
+                <div class="metric-value" id="availableValue">--</div>
+                <div class="metric-change" id="availableChange"></div>
+            </div>
+            <div class="metric-card" id="metricPending">
+                <div class="metric-label">Pending Queue</div>
+                <div class="metric-value" id="pendingValue">--</div>
+                <div class="metric-change" id="pendingChange"></div>
+            </div>
+        </div>
+
+        <!-- PostgreSQL Tables -->
+        <div class="chart-container">
+            <div class="chart-title">Assigned SIP Accounts (PostgreSQL)</div>
+            <div id="sipAccountsContainer"></div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title" style="justify-content: flex-start;">
+                Available SIP Accounts Pool (PostgreSQL)<button onclick="openAddModal()" style="margin-left: 8px;">Add</button>
+            </div>
+            <div id="availableAccountsContainer"></div>
+        </div>
+
+        <div class="chart-container">
+            <div class="chart-title" style="justify-content: flex-start;">
+                Pending Assignments Queue (FIFO) from AuthService<button onclick="openAddPendingModal()" style="margin-left: 8px; margin-right: 8px;">Add</button>
+                <button onclick="refreshData()">Refresh</button>
+            </div>
+            <div id="pendingAssignmentsContainer"></div>
+        </div>
+    </div>
+
+    <!-- Add Pending Assignment Modal -->
+    <div id="addPendingModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add Pending Assignment (Test)</div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="pendingUserId">User ID (GUID) *</label>
+                    <input type="text" id="pendingUserId" placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000" required>
+                </div>
+                <div class="form-group">
+                    <label for="pendingUserLogin">User Login *</label>
+                    <input type="text" id="pendingUserLogin" placeholder="e.g., testuser" required>
+                </div>
+                <div class="form-group">
+                    <label for="pendingDisplayName">Display Name *</label>
+                    <input type="text" id="pendingDisplayName" placeholder="e.g., Test User" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeAddPendingModal()">Cancel</button>
+                <button class="btn-submit" onclick="submitAddPending()">Add to Queue</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add SIP Account Modal -->
+    <div id="addModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Add SIP Account to Pool</div>
+            <div class="modal-body">
+                <div style="font-size: 11px; color: #666; margin-bottom: 12px;">
+                    Last SIP Account Name: <span id="lastIdInfo" style="font-weight: bold;">-</span>
+                </div>
+                <div class="form-group">
+                    <label for="sipAccountName">SIP Account Name *</label>
+                    <input type="text" id="sipAccountName" placeholder="e.g., 1001" required>
+                </div>
+                <div class="form-group">
+                    <label for="sipPassword">SIP Password *</label>
+                    <input type="text" id="sipPassword" placeholder="Enter password" required>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeAddModal()">Cancel</button>
+                <button class="btn-submit" onclick="submitAddAccount()">Add Account</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit SIP Account Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <div class="modal-header">Edit SIP Account</div>
+            <div class="modal-body">
+                <input type="hidden" id="editAccountId">
+                <div style="font-size: 11px; color: #666; margin-bottom: 12px;">
+                    SIP Account: <span id="editAccountNameDisplay" style="font-weight: bold;">-</span>
+                </div>
+                <div class="form-group">
+                    <label for="editUserId">User ID (GUID)</label>
+                    <input type="text" id="editUserId" placeholder="e.g., 550e8400-e29b-41d4-a716-446655440000">
+                </div>
+                <div class="form-group">
+                    <label for="editDisplayName">Display Name</label>
+                    <input type="text" id="editDisplayName" placeholder="e.g., John Doe">
+                </div>
+                <div class="form-group">
+                    <label for="editSipDomain">SIP Domain</label>
+                    <input type="text" id="editSipDomain" placeholder="e.g., sip.pbx">
+                </div>
+                <div class="form-group">
+                    <label for="editProxyUri">Proxy URI</label>
+                    <input type="text" id="editProxyUri" placeholder="e.g., sip:172.16.211.135:5060">
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn-cancel" onclick="closeEditModal()">Cancel</button>
+                <button class="btn-submit" onclick="submitEditAccount()">Update</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:5029/api';
+        let previousData = null;
+
+        // Pagination state
+        const pageSize = 3;
+        let sipAccountsPage = 1;
+        let availableAccountsPage = 1;
+        let pendingAssignmentsPage = 1;
+
+        // Filter state
+        let availableAccountsFilter = ''; // text-based filter for status
+
+        // Sort state
+        let availableAccountsSortOrder = 'asc'; // 'asc', 'desc'
+
+        // Кэш данных для фильтрации без перезапроса
+        let cachedAvailableAccounts = [];
+
+        async function fetchStats() {
+            const response = await fetch(`${API_BASE}/sip-pool/stats`);
+            return await response.json();
+        }
+
+        async function fetchSipAccounts() {
+            const response = await fetch(`${API_BASE}/sip-pool/db/sip-accounts`);
+            return await response.json();
+        }
+
+        async function fetchAvailableAccounts() {
+            const response = await fetch(`${API_BASE}/sip-pool/db/available-accounts`);
+            return await response.json();
+        }
+
+        async function fetchPendingAssignmentsTable() {
+            const response = await fetch(`${API_BASE}/sip-pool/db/pending-assignments`);
+            return await response.json();
+        }
+
+        function formatDateTime(dateStr) {
+            if (!dateStr) return '-';
+            const date = new Date(dateStr);
+            return date.toLocaleString('ru-RU', {
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        function renderSipAccounts(accounts) {
+            const container = document.getElementById('sipAccountsContainer');
+
+            if (accounts.length === 0) {
+                container.innerHTML = '<div class="empty-state">No assigned SIP accounts</div>';
+                return;
+            }
+
+            const totalPages = Math.ceil(accounts.length / pageSize);
+            const startIndex = (sipAccountsPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageAccounts = accounts.slice(startIndex, endIndex);
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 250px;">User ID</th>
+                            <th style="width: 150px;">SIP Account</th>
+                            <th style="width: 150px;">Display Name</th>
+                            <th style="width: 120px;">SIP Domain</th>
+                            <th style="width: 200px;">Proxy URI</th>
+                            <th style="width: 80px;">Active</th>
+                            <th style="width: 150px;">Created At</th>
+                            <th style="width: 120px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            pageAccounts.forEach(account => {
+                const activeStatus = account.isActive
+                    ? '<span class="status-active">ACTIVE</span>'
+                    : '<span class="status-inactive">INACTIVE</span>';
+
+                html += `
+                    <tr>
+                        <td style="font-size: 10px;">${account.userId}</td>
+                        <td><strong>${account.sipAccountName}</strong></td>
+                        <td>${account.displayName || '-'}</td>
+                        <td>${account.sipDomain || '-'}</td>
+                        <td style="font-size: 10px;">${account.proxyUri || '-'}</td>
+                        <td>${activeStatus}</td>
+                        <td>${formatDateTime(account.createdAt)}</td>
+                        <td>
+                            <button onclick="deleteSipAccount(${account.id}, '${account.sipAccountName}')" style="font-size: 9px; padding: 2px 6px; margin-right: 4px; background: #ffe0e0; color: #d00; border: 1px solid #d00;">Delete</button>
+                            <button onclick="editSipAccount('${account.id}', '${account.userId}', '${account.sipAccountName}', '${account.displayName}', '${account.sipDomain}', '${account.proxyUri}')" style="font-size: 9px; padding: 2px 6px; background: #e3f2fd; color: #1976d2; border: 1px solid #1976d2;">Edit</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+
+            if (totalPages > 1) {
+                html += `
+                    <div class="pagination">
+                        <button onclick="changeSipAccountsPage(${sipAccountsPage - 1})" ${sipAccountsPage === 1 ? 'disabled' : ''}>Previous</button>
+                        <span class="pagination-info">Page ${sipAccountsPage} of ${totalPages} (${accounts.length} total)</span>
+                        <button onclick="changeSipAccountsPage(${sipAccountsPage + 1})" ${sipAccountsPage === totalPages ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function changeSipAccountsPage(page) {
+            sipAccountsPage = page;
+            refreshData();
+        }
+
+        function renderAvailableAccounts(accounts) {
+            const container = document.getElementById('availableAccountsContainer');
+
+            if (accounts.length === 0) {
+                container.innerHTML = '<div class="empty-state">No available SIP accounts in pool</div>';
+                return;
+            }
+
+            // Apply filter based on text input
+            let filteredAccounts = accounts;
+            if (availableAccountsFilter && availableAccountsFilter !== 'all') {
+                const filterLower = availableAccountsFilter.toLowerCase();
+                filteredAccounts = accounts.filter(a => {
+                    const statusText = a.isAssigned ? 'assigned' : 'free';
+                    return statusText.includes(filterLower);
+                });
+            }
+
+            // Apply sorting (always active)
+            filteredAccounts = [...filteredAccounts].sort((a, b) => {
+                // Sort by status
+                const aStatus = a.isAssigned ? 1 : 0;
+                const bStatus = b.isAssigned ? 1 : 0;
+                return availableAccountsSortOrder === 'asc'
+                    ? aStatus - bStatus
+                    : bStatus - aStatus;
+            });
+
+            if (filteredAccounts.length === 0) {
+                container.innerHTML = `
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th style="width: 100px;">ID</th>
+                                <th style="width: 200px;">SIP Account Name</th>
+                                <th style="width: 120px; cursor: pointer;" onclick="toggleAvailableAccountsSort()">
+                                    Status
+                                    <input type="text" class="filter-input" id="filter-available-status"
+                                           placeholder="FREE/ASSIGNED" value="${availableAccountsFilter || ''}"
+                                           oninput="changeAvailableAccountsFilter(this.value)"
+                                           onclick="event.stopPropagation()" style="display: inline-block; width: auto; margin-left: 4px;">
+                                    ${availableAccountsSortOrder === 'asc' ? '<span class="sort-indicator">▲</span>' : '<span class="sort-indicator">▼</span>'}
+                                </th>
+                                <th style="width: 200px;">Assigned At</th>
+                                <th style="width: 80px;">Actions</th>
+                            </tr>
+                        </thead>
+                    </table>
+                    <div class="empty-state">No accounts match the selected filter</div>
+                `;
+                return;
+            }
+
+            const totalPages = Math.ceil(filteredAccounts.length / pageSize);
+            const startIndex = (availableAccountsPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageAccounts = filteredAccounts.slice(startIndex, endIndex);
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 100px;">ID</th>
+                            <th style="width: 200px;">SIP Account Name</th>
+                            <th style="width: 120px; cursor: pointer;" onclick="toggleAvailableAccountsSort()">
+                                Status
+                                <input type="text" class="filter-input" id="filter-available-status"
+                                       placeholder="FREE/ASSIGNED" value="${availableAccountsFilter || ''}"
+                                       oninput="changeAvailableAccountsFilter(this.value)"
+                                       onclick="event.stopPropagation()" style="display: inline-block; width: auto; margin-left: 4px;">
+                                ${availableAccountsSortOrder === 'asc' ? '<span class="sort-indicator">▲</span>' : '<span class="sort-indicator">▼</span>'}
+                            </th>
+                            <th style="width: 200px;">Assigned At</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            pageAccounts.forEach(account => {
+                const status = account.isAssigned
+                    ? '<span class="status-assigned">ASSIGNED</span>'
+                    : '<span class="status-free">FREE</span>';
+
+                html += `
+                    <tr>
+                        <td>${account.id}</td>
+                        <td><strong>${account.sipAccountName}</strong></td>
+                        <td>${status}</td>
+                        <td>${formatDateTime(account.assignedAt)}</td>
+                        <td>
+                            <button onclick="deleteAvailableAccount(${account.id}, '${account.sipAccountName}')" style="font-size: 9px; padding: 2px 6px; background: #ffe0e0; color: #d00; border: 1px solid #d00;">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+
+            if (totalPages > 1) {
+                html += `
+                    <div class="pagination">
+                        <button onclick="changeAvailableAccountsPage(${availableAccountsPage - 1})" ${availableAccountsPage === 1 ? 'disabled' : ''}>Previous</button>
+                        <span class="pagination-info">Page ${availableAccountsPage} of ${totalPages} (${filteredAccounts.length} total)</span>
+                        <button onclick="changeAvailableAccountsPage(${availableAccountsPage + 1})" ${availableAccountsPage === totalPages ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function changeAvailableAccountsPage(page) {
+            availableAccountsPage = page;
+            renderAvailableAccounts(cachedAvailableAccounts);
+        }
+
+        function changeAvailableAccountsFilter(value) {
+            availableAccountsFilter = value;
+            availableAccountsPage = 1; // Reset to page 1 when filter changes
+            // Перерисовываем только таблицу Available Accounts из кэша, без запроса к серверу
+            renderAvailableAccounts(cachedAvailableAccounts);
+        }
+
+        function toggleAvailableAccountsSort() {
+            // Переключаем порядок сортировки: asc <-> desc
+            availableAccountsSortOrder = availableAccountsSortOrder === 'asc' ? 'desc' : 'asc';
+            availableAccountsPage = 1; // Reset to page 1
+            renderAvailableAccounts(cachedAvailableAccounts);
+        }
+
+        function renderPendingAssignmentsTable(assignments) {
+            const container = document.getElementById('pendingAssignmentsContainer');
+
+            if (assignments.length === 0) {
+                container.innerHTML = '<div class="empty-state">No pending assignments</div>';
+                return;
+            }
+
+            const totalPages = Math.ceil(assignments.length / pageSize);
+            const startIndex = (pendingAssignmentsPage - 1) * pageSize;
+            const endIndex = startIndex + pageSize;
+            const pageAssignments = assignments.slice(startIndex, endIndex);
+
+            let html = `
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">ID</th>
+                            <th style="width: 250px;">User ID</th>
+                            <th style="width: 150px;">User Login</th>
+                            <th style="width: 200px;">Display Name</th>
+                            <th style="width: 150px;">Status</th>
+                            <th style="width: 180px;">Created At</th>
+                            <th style="width: 80px;">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+            `;
+
+            pageAssignments.forEach(assignment => {
+                const statusBadge = '<span class="status-assigned">WAITING</span>';
+
+                html += `
+                    <tr>
+                        <td>${assignment.id}</td>
+                        <td style="font-size: 10px;">${assignment.userId}</td>
+                        <td><strong>${assignment.userLogin}</strong></td>
+                        <td>${assignment.displayName || '-'}</td>
+                        <td>${statusBadge}</td>
+                        <td>${formatDateTime(assignment.createdAt)}</td>
+                        <td>
+                            <button onclick="deletePendingAssignment(${assignment.id}, '${assignment.userLogin}')" style="font-size: 9px; padding: 2px 6px; background: #ffe0e0; color: #d00; border: 1px solid #d00;">Delete</button>
+                        </td>
+                    </tr>
+                `;
+            });
+
+            html += '</tbody></table>';
+
+            if (totalPages > 1) {
+                html += `
+                    <div class="pagination">
+                        <button onclick="changePendingAssignmentsPage(${pendingAssignmentsPage - 1})" ${pendingAssignmentsPage === 1 ? 'disabled' : ''}>Previous</button>
+                        <span class="pagination-info">Page ${pendingAssignmentsPage} of ${totalPages} (${assignments.length} total)</span>
+                        <button onclick="changePendingAssignmentsPage(${pendingAssignmentsPage + 1})" ${pendingAssignmentsPage === totalPages ? 'disabled' : ''}>Next</button>
+                    </div>
+                `;
+            }
+
+            container.innerHTML = html;
+        }
+
+        function changePendingAssignmentsPage(page) {
+            pendingAssignmentsPage = page;
+            refreshData();
+        }
+
+        function updateMetric(elementId, value, previousValue, changeId) {
+            const element = document.getElementById(elementId);
+            const changeElement = document.getElementById(changeId);
+
+            element.textContent = value;
+
+            if (previousValue !== null && previousValue !== undefined && previousValue !== value) {
+                const diff = value - previousValue;
+                const sign = diff > 0 ? '+' : '';
+                changeElement.textContent = `${sign}${diff} from previous`;
+
+                // Flash animation
+                const card = element.closest('.metric-card');
+                card.classList.remove('flash');
+                void card.offsetWidth; // Trigger reflow
+                card.classList.add('flash');
+
+                setTimeout(() => card.classList.remove('flash'), 500);
+            } else if (previousValue === null || previousValue === undefined) {
+                // First load - no change indicator
+                changeElement.textContent = '';
+            }
+        }
+
+        async function checkEurekaStatus() {
+            const eurekaStatus = document.getElementById('eurekaStatus');
+            try {
+                const response = await fetch('/health');
+                if (response.ok) {
+                    eurekaStatus.className = 'status-badge connected';
+                    eurekaStatus.textContent = 'REGISTERED';
+                } else {
+                    eurekaStatus.className = 'status-badge error';
+                    eurekaStatus.textContent = 'ERROR';
+                }
+            } catch (error) {
+                eurekaStatus.className = 'status-badge error';
+                eurekaStatus.textContent = 'UNKNOWN';
+            }
+        }
+
+        async function refreshData() {
+            const statusBar = document.getElementById('statusBar');
+            const dbStatus = document.getElementById('dbStatus');
+            const rabbitStatus = document.getElementById('rabbitStatus');
+
+            statusBar.classList.add('updating');
+
+            // Check Eureka status
+            checkEurekaStatus();
+
+            try {
+                const [stats, sipAccounts, availableAccounts, pendingAssignmentsTable] = await Promise.all([
+                    fetchStats(),
+                    fetchSipAccounts(),
+                    fetchAvailableAccounts(),
+                    fetchPendingAssignmentsTable()
+                ]);
+
+                // Update metrics with change detection
+                updateMetric('totalValue', stats.totalAccounts,
+                    previousData?.totalAccounts, 'totalChange');
+                updateMetric('assignedValue', stats.assignedAccounts,
+                    previousData?.assignedAccounts, 'assignedChange');
+                updateMetric('availableValue', stats.availableAccounts,
+                    previousData?.availableAccounts, 'availableChange');
+                updateMetric('pendingValue', stats.pendingAssignments,
+                    previousData?.pendingAssignments, 'pendingChange');
+
+                // Сохраняем в кэш
+                cachedAvailableAccounts = availableAccounts;
+
+                // Update PostgreSQL tables
+                renderSipAccounts(sipAccounts);
+                renderAvailableAccounts(availableAccounts);
+                renderPendingAssignmentsTable(pendingAssignmentsTable);
+
+                // Update last update time
+                document.getElementById('lastUpdate').textContent =
+                    `Last update: ${new Date().toLocaleTimeString('en-US', { hour12: false })}`;
+
+                previousData = stats;
+
+                // Database status - connected if we got data
+                dbStatus.className = 'status-badge connected';
+                dbStatus.textContent = 'CONNECTED';
+
+                // RabbitMQ status - assume connected if we have pending data
+                rabbitStatus.className = 'status-badge connected';
+                rabbitStatus.textContent = 'CONNECTED';
+            } catch (error) {
+                console.error('Error fetching data:', error);
+
+                // Database status - error
+                dbStatus.className = 'status-badge error';
+                dbStatus.textContent = 'ERROR';
+
+                // RabbitMQ status - unknown on DB error
+                rabbitStatus.className = 'status-badge connecting';
+                rabbitStatus.textContent = 'UNKNOWN';
+            } finally {
+                statusBar.classList.remove('updating');
+            }
+        }
+
+        async function deleteSipAccount(id, sipAccountName) {
+            if (!confirm(`Are you sure you want to delete SIP account "${sipAccountName}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/db/sip-accounts/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    console.log(`SIP account ${sipAccountName} (ID: ${id}) deleted successfully`);
+                    await refreshData();
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Error deleting SIP account: ${response.status}: ${errorText}`);
+                    alert(`Error deleting SIP account: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error deleting SIP account:', err);
+                alert('Error deleting SIP account: ' + err.message);
+            }
+        }
+
+        async function deleteAvailableAccount(id, sipAccountName) {
+            if (!confirm(`Are you sure you want to delete available account "${sipAccountName}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/db/available-accounts/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    console.log(`Available account ${sipAccountName} (ID: ${id}) deleted successfully`);
+                    await refreshData();
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Error deleting available account: ${response.status}: ${errorText}`);
+                    alert(`Error deleting available account: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error deleting available account:', err);
+                alert('Error deleting available account: ' + err.message);
+            }
+        }
+
+        async function deletePendingAssignment(id, userLogin) {
+            if (!confirm(`Are you sure you want to delete pending assignment for user "${userLogin}"?\n\nThis action cannot be undone.`)) {
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/db/pending-assignments/${id}`, {
+                    method: 'DELETE'
+                });
+
+                if (response.ok) {
+                    console.log(`Pending assignment for ${userLogin} (ID: ${id}) deleted successfully`);
+                    await refreshData();
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Error deleting pending assignment: ${response.status}: ${errorText}`);
+                    alert(`Error deleting pending assignment: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error deleting pending assignment:', err);
+                alert('Error deleting pending assignment: ' + err.message);
+            }
+        }
+
+        async function openAddModal() {
+            document.getElementById('addModal').style.display = 'block';
+            document.getElementById('sipAccountName').value = '';
+            document.getElementById('sipPassword').value = '';
+
+            // Fetch and display last SIP Account Name
+            try {
+                const availableAccounts = await fetchAvailableAccounts();
+                if (availableAccounts.length > 0) {
+                    // Find account with max ID
+                    const lastAccount = availableAccounts.reduce((max, acc) => acc.id > max.id ? acc : max);
+                    document.getElementById('lastIdInfo').textContent = lastAccount.sipAccountName;
+                } else {
+                    document.getElementById('lastIdInfo').textContent = 'no accounts yet';
+                }
+            } catch (error) {
+                console.error('Error fetching last account:', error);
+                document.getElementById('lastIdInfo').textContent = 'Error loading';
+            }
+        }
+
+        function closeAddModal() {
+            document.getElementById('addModal').style.display = 'none';
+        }
+
+        async function submitAddAccount() {
+            const sipAccountName = document.getElementById('sipAccountName').value.trim();
+            const sipPassword = document.getElementById('sipPassword').value.trim();
+
+            if (!sipAccountName || !sipPassword) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/bulk`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        accounts: [{
+                            sipAccountName: sipAccountName,
+                            sipPassword: sipPassword
+                        }]
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Account added:', result);
+                    closeAddModal();
+                    await refreshData();
+                    alert(`Account ${sipAccountName} added successfully!`);
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error adding account:', response.status, errorText);
+                    alert(`Error adding account: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error adding account:', err);
+                alert('Error adding account: ' + err.message);
+            }
+        }
+
+        function openAddPendingModal() {
+            document.getElementById('addPendingModal').style.display = 'block';
+            // Generate random GUID
+            document.getElementById('pendingUserId').value = generateGUID();
+            document.getElementById('pendingUserLogin').value = '';
+            document.getElementById('pendingDisplayName').value = '';
+        }
+
+        function closeAddPendingModal() {
+            document.getElementById('addPendingModal').style.display = 'none';
+        }
+
+        async function submitAddPending() {
+            const userId = document.getElementById('pendingUserId').value.trim();
+            const userLogin = document.getElementById('pendingUserLogin').value.trim();
+            const displayName = document.getElementById('pendingDisplayName').value.trim();
+
+            if (!userId || !userLogin || !displayName) {
+                alert('Please fill in all required fields');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/pending`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userId: userId,
+                        userLogin: userLogin,
+                        displayName: displayName
+                    })
+                });
+
+                if (response.ok) {
+                    const result = await response.json();
+                    console.log('Pending assignment added:', result);
+                    closeAddPendingModal();
+                    await refreshData();
+                    if (result.autoAssigned) {
+                        alert(`Pending assignment for ${userLogin} was auto-assigned immediately!`);
+                    } else {
+                        alert(`Pending assignment for ${userLogin} added to queue`);
+                    }
+                } else {
+                    const errorText = await response.text();
+                    console.error('Error adding pending:', response.status, errorText);
+                    alert(`Error adding pending: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error adding pending:', err);
+                alert('Error adding pending: ' + err.message);
+            }
+        }
+
+        function generateGUID() {
+            return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+                const r = Math.random() * 16 | 0;
+                const v = c === 'x' ? r : (r & 0x3 | 0x8);
+                return v.toString(16);
+            });
+        }
+
+        function editSipAccount(id, userId, sipAccountName, displayName, sipDomain, proxyUri) {
+            document.getElementById('editModal').style.display = 'block';
+            document.getElementById('editAccountId').value = id;
+            document.getElementById('editAccountNameDisplay').textContent = sipAccountName;
+            document.getElementById('editUserId').value = userId || '';
+            document.getElementById('editDisplayName').value = displayName || '';
+            document.getElementById('editSipDomain').value = sipDomain || '';
+            document.getElementById('editProxyUri').value = proxyUri || '';
+        }
+
+        function closeEditModal() {
+            document.getElementById('editModal').style.display = 'none';
+        }
+
+        async function submitEditAccount() {
+            const id = document.getElementById('editAccountId').value;
+            const userId = document.getElementById('editUserId').value.trim();
+            const displayName = document.getElementById('editDisplayName').value.trim();
+            const sipDomain = document.getElementById('editSipDomain').value.trim();
+            const proxyUri = document.getElementById('editProxyUri').value.trim();
+
+            const updateData = {};
+            if (userId) updateData.userId = userId;
+            if (displayName) updateData.displayName = displayName;
+            if (sipDomain) updateData.sipDomain = sipDomain;
+            if (proxyUri) updateData.proxyUri = proxyUri;
+
+            if (Object.keys(updateData).length === 0) {
+                alert('Please fill at least one field to update');
+                return;
+            }
+
+            try {
+                const response = await fetch(`${API_BASE}/sip-pool/db/sip-accounts/${id}`, {
+                    method: 'PUT',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(updateData)
+                });
+
+                if (response.ok) {
+                    console.log(`SIP account ID ${id} updated successfully`);
+                    closeEditModal();
+                    await refreshData();
+                    alert('SIP account updated successfully!');
+                } else {
+                    const errorText = await response.text();
+                    console.error(`Error updating SIP account: ${response.status}: ${errorText}`);
+                    alert(`Error updating SIP account: ${errorText}`);
+                }
+            } catch (err) {
+                console.error('Error updating SIP account:', err);
+                alert('Error updating SIP account: ' + err.message);
+            }
+        }
+
+        // Close modal when clicking outside of it
+        window.onclick = function(event) {
+            const addModal = document.getElementById('addModal');
+            const addPendingModal = document.getElementById('addPendingModal');
+            const editModal = document.getElementById('editModal');
+            if (event.target === addModal) {
+                closeAddModal();
+            }
+            if (event.target === addPendingModal) {
+                closeAddPendingModal();
+            }
+            if (event.target === editModal) {
+                closeEditModal();
+            }
+        }
+
+        // Initial load
+        refreshData();
+
+        // Auto-refresh every 3 seconds
+        setInterval(refreshData, 3000);
+    </script>
+</body>
+</html>

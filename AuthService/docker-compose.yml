@@ -1,0 +1,25 @@
+version: "3.8"
+
+services:
+  login-service:
+    image: reg.pit.protei.ru/safe-city/auth:latest
+    deploy:
+      replicas: 2  
+      update_config:
+        parallelism: 1      
+        delay: 5s           
+        order: start-first  
+        failure_action: rollback 
+      rollback_config:
+        parallelism: 0
+      restart_policy:
+        condition: on-failure
+    ports:
+      - "6022:8080"
+    networks:
+      - srub_tomsk  
+
+networks:
+  srub_tomsk:
+    external: true
+
